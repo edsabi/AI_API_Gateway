@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin Panel</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+        input { padding: 8px; margin: 5px; }
+        button { padding: 8px 15px; background: #007bff; color: white; border: none; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f0f0f0; }
+        .token { font-family: monospace; font-size: 12px; }
+        #loginForm { max-width: 400px; }
+        .hidden { display: none; }
+        .log-entry { border: 1px solid #ddd; padding: 10px; margin: 10px 0; border-radius: 5px; background: #f9f9f9; }
+        .log-header { font-weight: bold; margin-bottom: 5px; }
+        .log-content { font-family: monospace; font-size: 12px; white-space: pre-wrap; background: white; padding: 8px; border-radius: 3px; margin-top: 5px; max-height: 200px; overflow-y: auto; }
+        
+        .hamburger {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            z-index: 1000;
+        }
+        .hamburger div {
+            width: 30px;
+            height: 3px;
+            background: #007bff;
+            margin: 6px 0;
+        }
+        .menu {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 300px;
+            height: 100%;
+            background: #f8f9fa;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+            transform: translateX(100%);
+            z-index: 999;
+            padding: 60px 20px 20px 20px;
+        }
+        .menu.open {
+            transform: translateX(0);
+        }
+        .menu button {
+            width: 100%;
+            margin: 10px 0;
+            text-align: left;
+        }
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 998;
+            display: none;
+        }
+        .overlay.show {
+            display: block;
+        }
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 1001;
+            display: none;
+        }
+        .modal.show {
+            display: block;
+        }
+        .modal input {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+        }
+        .alert-entry { border: 1px solid #dc3545; padding: 10px; margin: 10px 0; border-radius: 5px; background: #ffe6e6; }
+        .redirect-entry { border: 1px solid #007bff; padding: 10px; margin: 10px 0; border-radius: 5px; background: #e6f2ff; }
+    </style>
+</head>
+<body>
+    <div class="overlay" id="overlay" onclick="closeOverlay()"></div>
+    <div class="hamburger" onclick="toggleMenu()">
+        <div></div>
+        <div></div>
+        <div></div>
+    </div>
+    <div class="menu" id="menu">
+        <h3>Administration</h3>
+        <button onclick="showCreateUser(); toggleMenu();">Create User</button>
+        <button onclick="showPasswordChange(); toggleMenu();">Change Admin Password</button>
+        <button onclick="showVendorLimits(); toggleMenu();" style="background: #17a2b8;">Vendor Limits</button>
+        <button onclick="window.location.href='/guardrails.html'" style="background: #17a2b8;">Custom Guardrails</button>
+        <button onclick="logout()" class="danger">Logout</button>
+    </div>
+
+    <div class="modal" id="passwordModal">
+        <h3>Change Admin Password</h3>
+        <input type="password" id="currentPassword" placeholder="Current Password">
+        <input type="password" id="newAdminPassword" placeholder="New Password">
+        <div style="margin-top: 20px;">
+            <button onclick="submitPasswordChange()">Change Password</button>
+            <button onclick="closePasswordModal()" style="background: #6c757d;">Cancel</button>
+        </div>
+    </div>
+
+    <div class="modal" id="createUserModal">
+        <h3>Create User</h3>
+        <input type="text" id="newUsername" placeholder="Username">
+        <input type="password" id="newPassword" placeholder="Password">
+        <div style="margin-top: 20px;">
+            <button onclick="submitCreateUser()">Create User</button>
+            <button onclick="closeCreateUserModal()" style="background: #6c757d;">Cancel</button>
+        </div>
+    </div>
+
+    <div id="loginForm">
+        <h2>Admin Login</h2>
+        <input type="text" id="adminUsername" placeholder="Username">
+        <input type="password" id="adminPassword" placeholder="Password">
+        <button onclick="adminLogin()">Login</button>
+        <div id="loginError" style="color: red; margin-top: 10px;"></div>
+    </div>
+
+    <div id="adminPanel" class="hidden">
+        <h2>User Management</h2>
+        <div style="clear: both; margin-bottom: 20px;"></div>
+        
+        <div id="vendorLimitsSection" class="hidden" style="margin-bottom: 20px; padding: 15px; background: #f0f8ff; border-radius: 5px;">
+            <h3>Vendor Limits</h3>
+            <div id="vendorsList"></div>
+            <button onclick="showVendorLimits()">Close</button>
+        </div>
+        
+        <table id="usersTable">
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Tokens</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="usersBody"></tbody>
+        </table>
+
+        <h3 style="margin-top: 30px;">Request Logs</h3>
+        <button onclick="loadLogs()">Refresh All Logs</button>
+        <button onclick="clearLogFilter()" style="background: #6c757d;">Clear Filter</button>
+        <span id="logFilter" style="margin-left: 10px; font-weight: bold;"></span>
+        <div id="logsContainer" style="margin-top: 10px;"></div>
+
+        <h3 style="margin-top: 30px;">Guardrail Alerts</h3>
+        <button onclick="loadAlerts()">Refresh All Alerts</button>
+        <button onclick="clearAlertFilter()" style="background: #6c757d;">Clear Filter</button>
+        <span id="alertFilter" style="margin-left: 10px; font-weight: bold;"></span>
+        <div id="alertsContainer" style="margin-top: 10px;"></div>
+
+        <h3 style="margin-top: 30px;">Business Redirects</h3>
+        <button onclick="loadRedirects()">Refresh All Redirects</button>
+        <button onclick="clearRedirectFilter()" style="background: #6c757d;">Clear Filter</button>
+        <span id="redirectFilter" style="margin-left: 10px; font-weight: bold;"></span>
+        <div id="redirectsContainer" style="margin-top: 10px;"></div>
+    </div>
+
+    <script>
+        let isAdmin = false;
+        let currentUserFilter = null;
+
+        function toggleMenu() {
+            const menu = document.getElementById('menu');
+            const overlay = document.getElementById('overlay');
+            const wasOpen = menu.classList.contains('open');
+            menu.classList.toggle('open');
+            if (wasOpen && !document.getElementById('passwordModal').classList.contains('show')) {
+                overlay.classList.remove('show');
+            } else if (!wasOpen) {
+                overlay.classList.add('show');
+            }
+        }
+
+        function closeOverlay() {
+            document.getElementById('menu').classList.remove('open');
+            document.getElementById('overlay').classList.remove('show');
+            closePasswordModal();
+            closeCreateUserModal();
+        }
+
+        function showVendorLimits() {
+            const section = document.getElementById('vendorLimitsSection');
+            section.classList.toggle('hidden');
+            if (!section.classList.contains('hidden')) {
+                loadVendors();
+            }
+        }
+
+        // Check if already logged in
+        window.onload = function() {
+            const adminSession = sessionStorage.getItem('adminSession');
+            if (adminSession) {
+                isAdmin = true;
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                loadUsers();
+            }
+        };
+
+        async function adminLogin() {
+            const username = document.getElementById('adminUsername').value;
+            const password = document.getElementById('adminPassword').value;
+            const res = await fetch('/admin/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            if (res.ok) {
+                isAdmin = true;
+                sessionStorage.setItem('adminSession', 'true');
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('adminPanel').classList.remove('hidden');
+                loadUsers();
+            } else {
+                document.getElementById('loginError').textContent = 'Invalid credentials';
+            }
+        }
+
+        function logout() {
+            sessionStorage.removeItem('adminSession');
+            isAdmin = false;
+            document.getElementById('adminPanel').classList.add('hidden');
+            document.getElementById('loginForm').classList.remove('hidden');
+            document.getElementById('adminUsername').value = '';
+            document.getElementById('adminPassword').value = '';
+        }
+
+        function viewUserLogs(username) {
+            currentUserFilter = username;
+            document.getElementById('logFilter').textContent = `Showing logs for: ${username}`;
+            document.getElementById('alertFilter').textContent = `Showing alerts for: ${username}`;
+            document.getElementById('redirectFilter').textContent = `Showing redirects for: ${username}`;
+            loadLogs();
+            loadAlerts();
+            loadRedirects();
+            document.getElementById('logsContainer').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function clearLogFilter() {
+            currentUserFilter = null;
+            document.getElementById('logFilter').textContent = '';
+            loadLogs();
+        }
+
+        function clearAlertFilter() {
+            currentUserFilter = null;
+            document.getElementById('alertFilter').textContent = '';
+            loadAlerts();
+        }
+
+        function clearRedirectFilter() {
+            currentUserFilter = null;
+            document.getElementById('redirectFilter').textContent = '';
+            loadRedirects();
+        }
+
+        function showPasswordChange() {
+            document.getElementById('passwordModal').classList.add('show');
+            document.getElementById('overlay').classList.add('show');
+        }
+
+        function closePasswordModal() {
+            document.getElementById('passwordModal').classList.remove('show');
+            document.getElementById('currentPassword').value = '';
+            document.getElementById('newAdminPassword').value = '';
+            if (!document.getElementById('menu').classList.contains('open')) {
+                document.getElementById('overlay').classList.remove('show');
+            }
+        }
+
+        function submitPasswordChange() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newAdminPassword').value;
+            if (!currentPassword || !newPassword) {
+                alert('Please fill in both fields');
+                return;
+            }
+            changeAdminPassword(currentPassword, newPassword);
+        }
+
+        async function changeAdminPassword(currentPassword, newPassword) {
+            const res = await fetch('/admin/change-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPassword, newPassword })
+            });
+            if (res.ok) {
+                alert('Password changed successfully');
+                closePasswordModal();
+            } else {
+                alert('Invalid current password');
+            }
+        }
+
+        async function loadVendors() {
+            const res = await fetch('/admin/vendors');
+            const vendors = await res.json();
+            const container = document.getElementById('vendorsList');
+            container.innerHTML = vendors.map(v => `
+                <div style="margin: 10px 0; padding: 10px; background: white; border-radius: 3px;">
+                    <strong>${v.vendor.toUpperCase()}</strong> - 
+                    Spent: $${v.cost.toFixed(4)} 
+                    ${v.limit ? `/ Limit: $${v.limit.toFixed(2)}` : '(No limit)'} 
+                    ${v.limit && v.cost >= v.limit ? '<span style="color:red;font-weight:bold"> ⚠️ LIMIT REACHED</span>' : ''}
+                    <button onclick="setVendorLimit('${v.vendor}', ${v.limit || 'null'})" style="margin-left: 10px;">Set Limit</button>
+                </div>
+            `).join('');
+        }
+
+        async function setVendorLimit(vendor, currentLimit) {
+            const limit = prompt(`Set cost limit for ${vendor.toUpperCase()} (in dollars, or leave empty for unlimited):`, currentLimit || '');
+            if (limit === null) return;
+            const costLimit = limit === '' ? null : parseFloat(limit);
+            await fetch(`/admin/vendors/${vendor}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ limit: costLimit })
+            });
+            loadVendors();
+        }
+
+        async function loadUsers() {
+            const res = await fetch('/admin/users');
+            const users = await res.json();
+            const tbody = document.getElementById('usersBody');
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.username}
+                        ${u.costLimit ? `<br><small>Limit: $${u.costLimit.toFixed(2)}</small>` : ''}
+                        ${u.totalCost ? `<br><small style="color: ${u.costLimit && u.totalCost >= u.costLimit ? 'red' : 'green'}">Spent: $${u.totalCost.toFixed(4)}</small>` : ''}
+                    </td>
+                    <td>${u.tokenCount} token(s)
+                        ${u.tokens.length > 0 ? '<br><small>' + u.tokens.map(t => 
+                            `<strong>${t.name}</strong>${t.costLimit ? ` (Limit: $${t.costLimit.toFixed(2)})` : ''}<br>` +
+                            `Models: ${t.models.length > 0 ? t.models.join(', ') : 'all'}<br>` +
+                            `Tokens: ${t.usage.totalTokens.toLocaleString()}<br>` +
+                            `API Cost: $${t.usage.cost.toFixed(4)}<br>` +
+                            `Guardrail Cost: $${t.usage.guardrailCost.toFixed(4)}<br>` +
+                            `<strong>Total: $${t.usage.totalCost.toFixed(4)}</strong>`
+                        ).join('<br><br>') + '</small>' : ''}
+                    </td>
+                    <td>${u.enabled ? 'Enabled' : 'Disabled'}</td>
+                    <td>
+                        <button onclick="toggleUser('${u.username}', ${!u.enabled})">
+                            ${u.enabled ? 'Disable' : 'Enable'}
+                        </button>
+                        <button onclick="setUserLimit('${u.username}', ${u.costLimit || 'null'})">Set Limit</button>
+                        <button onclick="viewUserLogs('${u.username}')">View Logs</button>
+                        <button class="danger" onclick="deleteUser('${u.username}')">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function showCreateUser() {
+            document.getElementById('createUserModal').classList.add('show');
+            document.getElementById('overlay').classList.add('show');
+        }
+
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').classList.remove('show');
+            document.getElementById('newUsername').value = '';
+            document.getElementById('newPassword').value = '';
+            if (!document.getElementById('menu').classList.contains('open')) {
+                document.getElementById('overlay').classList.remove('show');
+            }
+        }
+
+        function submitCreateUser() {
+            const username = document.getElementById('newUsername').value;
+            const password = document.getElementById('newPassword').value;
+            if (!username || !password) {
+                alert('Please fill in both fields');
+                return;
+            }
+            createUser(username, password);
+        }
+
+        async function createUser(username, password) {
+            await fetch('/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            closeCreateUserModal();
+            loadUsers();
+        }
+
+        async function toggleUser(username, enabled) {
+            await fetch(`/admin/users/${username}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled })
+            });
+            loadUsers();
+        }
+
+        async function setUserLimit(username, currentLimit) {
+            const limit = prompt(`Set cost limit for ${username} (in dollars, or leave empty for unlimited):`, currentLimit || '');
+            if (limit === null) return;
+            const costLimit = limit === '' ? null : parseFloat(limit);
+            await fetch(`/admin/users/${username}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ costLimit })
+            });
+            loadUsers();
+        }
+
+        async function deleteUser(username) {
+            if (confirm(`Delete user ${username}?`)) {
+                await fetch(`/admin/users/${username}`, { method: 'DELETE' });
+                loadUsers();
+            }
+        }
+
+        async function loadLogs() {
+            const res = await fetch('/admin/logs');
+            const logs = await res.json();
+            const container = document.getElementById('logsContainer');
+            
+            const filteredLogs = currentUserFilter 
+                ? logs.filter(log => log.username === currentUserFilter)
+                : logs;
+            
+            if (filteredLogs.length === 0) {
+                container.innerHTML = '<p>No logs yet</p>';
+                return;
+            }
+            container.innerHTML = filteredLogs.map(log => `
+                <div class="log-entry">
+                    <div class="log-header">${log.username} (${log.tokenName || 'unknown token'}) - ${new Date(log.timestamp).toLocaleString()}</div>
+                    <div><strong>Request:</strong></div>
+                    <div class="log-content">${JSON.stringify(log.request, null, 2)}</div>
+                    <div><strong>Response:</strong></div>
+                    <div class="log-content">${JSON.stringify(log.response, null, 2)}</div>
+                </div>
+            `).join('');
+        }
+
+        async function loadAlerts() {
+            const res = await fetch('/admin/alerts');
+            const alerts = await res.json();
+            const container = document.getElementById('alertsContainer');
+            
+            const filteredAlerts = currentUserFilter 
+                ? alerts.filter(alert => alert.username === currentUserFilter)
+                : alerts;
+            
+            if (filteredAlerts.length === 0) {
+                container.innerHTML = '<p>No alerts yet</p>';
+                return;
+            }
+            container.innerHTML = filteredAlerts.map(alert => `
+                <div class="alert-entry">
+                    <div class="log-header">⚠️ ${alert.username} (${alert.tokenName || 'unknown token'}) - ${new Date(alert.timestamp).toLocaleString()}</div>
+                    <div><strong>Blocked Prompt:</strong></div>
+                    <div class="log-content">${alert.prompt}</div>
+                    <div><strong>Reason:</strong> ${alert.reason}</div>
+                </div>
+            `).join('');
+        }
+
+        async function loadRedirects() {
+            const res = await fetch('/admin/redirects');
+            const redirects = await res.json();
+            const container = document.getElementById('redirectsContainer');
+            
+            const filteredRedirects = currentUserFilter 
+                ? redirects.filter(redirect => redirect.username === currentUserFilter)
+                : redirects;
+            
+            if (filteredRedirects.length === 0) {
+                container.innerHTML = '<p>No redirects yet</p>';
+                return;
+            }
+            container.innerHTML = filteredRedirects.map(redirect => `
+                <div class="redirect-entry">
+                    <div class="log-header">🔄 ${redirect.username} (${redirect.tokenName || 'unknown token'}) - ${new Date(redirect.timestamp).toLocaleString()}</div>
+                    <div><strong>Prompt:</strong></div>
+                    <div class="log-content">${redirect.prompt}</div>
+                    <div><strong>Response:</strong> ${redirect.message}</div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Token Management</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+        input, select { padding: 8px; margin: 5px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; margin: 5px; }
+        button:hover { background: #0056b3; }
+        button.danger { background: #dc3545; }
+        button.danger:hover { background: #c82333; }
+        .token-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 5px; background: #f9f9f9; }
+        .token-value { font-family: monospace; background: #fff; padding: 10px; border-radius: 3px; word-break: break-all; margin: 10px 0; }
+        .hidden { display: none; }
+        .models { margin: 10px 0; }
+        .model-checkbox { margin: 5px 10px; }
+    </style>
+</head>
+<body>
+    <h1>Token Management</h1>
+    <p>Welcome, <span id="username"></span>! <a href="#" onclick="logout()">Logout</a></p>
+
+    <div style="margin: 20px 0;">
+        <h2>Create New Token</h2>
+        <input type="text" id="tokenName" placeholder="Token Name (e.g., 'Production API')">
+        <div class="models">
+            <label><input type="checkbox" class="model-checkbox" value="gpt-4"> gpt-4</label>
+            <label><input type="checkbox" class="model-checkbox" value="gpt-4-turbo"> gpt-4-turbo</label>
+            <label><input type="checkbox" class="model-checkbox" value="gpt-4o"> gpt-4o</label>
+            <label><input type="checkbox" class="model-checkbox" value="gpt-4o-mini"> gpt-4o-mini</label>
+            <label><input type="checkbox" class="model-checkbox" value="gpt-3.5-turbo"> gpt-3.5-turbo</label>
+            <br>
+            <small>Leave unchecked to allow all models</small>
+        </div>
+        <button onclick="createToken()">Create Token</button>
+    </div>
+
+    <div id="newToken" class="hidden" style="background: #fff3cd; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h3>⚠️ Save Your Token Now!</h3>
+        <p>This token will only be shown once. Copy it now:</p>
+        <div class="token-value" id="newTokenValue"></div>
+        <button onclick="copyNewToken()">Copy Token</button>
+        <button onclick="closeNewToken()">Done</button>
+    </div>
+
+    <h2>Your Tokens</h2>
+    <div id="tokensList"></div>
+
+    <script>
+        let auth = '';
+        let newTokenValue = '';
+
+        function init() {
+            auth = sessionStorage.getItem('auth');
+            const username = sessionStorage.getItem('username');
+            
+            if (!auth || !username) {
+                window.location.href = '/';
+                return;
+            }
+            
+            auth = 'Basic ' + auth;
+            document.getElementById('username').textContent = username;
+            loadTokens();
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+
+        async function loadTokens() {
+            const res = await fetch('/user/tokens', {
+                headers: { 'Authorization': auth }
+            });
+            const tokens = await res.json();
+            
+            const container = document.getElementById('tokensList');
+            if (tokens.length === 0) {
+                container.innerHTML = '<p>No tokens yet. Create one above!</p>';
+                return;
+            }
+            
+            container.innerHTML = tokens.map(t => `
+                <div class="token-card">
+                    <h3>${t.name}</h3>
+                    <p><strong>Created:</strong> ${new Date(t.created).toLocaleString()}</p>
+                    <p><strong>Allowed Models:</strong> ${t.models.length > 0 ? t.models.join(', ') : 'All models'}</p>
+                    ${t.costLimit ? `<p><strong>Cost Limit:</strong> $${t.costLimit.toFixed(2)} ${t.usage.totalCost >= t.costLimit ? '<span style="color:red">(REACHED)</span>' : ''}</p>` : ''}
+                    <p><strong>Usage:</strong> ${t.usage.totalTokens.toLocaleString()} total tokens 
+                       (${t.usage.promptTokens.toLocaleString()} prompt, ${t.usage.completionTokens.toLocaleString()} completion)</p>
+                    <p><strong>API Cost:</strong> $${t.usage.cost.toFixed(4)}</p>
+                    <p><strong>Guardrail Cost:</strong> $${t.usage.guardrailCost.toFixed(4)}</p>
+                    <p><strong>Total Cost:</strong> $${t.usage.totalCost.toFixed(4)}</p>
+                    <button onclick="setTokenLimit('${t.id}', ${t.costLimit || 'null'})">Set Limit</button>
+                    <button class="danger" onclick="deleteToken('${t.id}')">Delete Token</button>
+                </div>
+            `).join('');
+        }
+
+        async function createToken() {
+            const name = document.getElementById('tokenName').value;
+            if (!name) {
+                alert('Please enter a token name');
+                return;
+            }
+            
+            const checkboxes = document.querySelectorAll('.model-checkbox:checked');
+            const models = Array.from(checkboxes).map(cb => cb.value);
+            
+            const res = await fetch('/user/tokens', {
+                method: 'POST',
+                headers: {
+                    'Authorization': auth,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ name, models })
+            });
+            
+            const data = await res.json();
+            newTokenValue = data.token;
+            document.getElementById('newTokenValue').textContent = data.token;
+            document.getElementById('newToken').classList.remove('hidden');
+            document.getElementById('tokenName').value = '';
+            document.querySelectorAll('.model-checkbox').forEach(cb => cb.checked = false);
+        }
+
+        async function copyNewToken() {
+            await navigator.clipboard.writeText(newTokenValue);
+            alert('Token copied to clipboard!');
+        }
+
+        function closeNewToken() {
+            document.getElementById('newToken').classList.add('hidden');
+            loadTokens();
+        }
+
+        async function deleteToken(id) {
+            if (!confirm('Delete this token? This cannot be undone.')) return;
+            
+            await fetch(`/user/tokens/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': auth }
+            });
+            
+            loadTokens();
+        }
+
+        async function setTokenLimit(id, currentLimit) {
+            const limit = prompt('Set cost limit for this token (in dollars, or leave empty for unlimited):', currentLimit || '');
+            if (limit === null) return;
+            const costLimit = limit === '' ? null : parseFloat(limit);
+            await fetch(`/user/tokens/${id}`, {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': auth,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ costLimit })
+            });
+            loadTokens();
+        }
+
+        init();
+    </script>
+</body>
+</html>

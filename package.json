@@ -1,0 +1,12 @@
+{
+  "name": "ai-gateway",
+  "version": "1.0.0",
+  "main": "auth-service.js",
+  "scripts": {
+    "start": "docker-compose up"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "1.14.0"
+  }
+}

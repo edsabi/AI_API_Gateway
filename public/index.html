@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Gateway - Login</title>
+    <style>
+        body { font-family: Arial; max-width: 400px; margin: 50px auto; padding: 20px; }
+        input { width: 100%; padding: 8px; margin: 5px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #007bff; color: white; border: none; cursor: pointer; margin: 5px 0; }
+        button:hover { background: #0056b3; }
+        button.secondary { background: #6c757d; }
+        button.secondary:hover { background: #5a6268; }
+        .token { background: #f0f0f0; padding: 10px; word-break: break-all; margin-top: 10px; }
+        .error { color: red; margin-top: 10px; }
+        .success { color: green; margin-top: 10px; }
+        .hidden { display: none; }
+        .warning { background: #fff3cd; padding: 10px; border: 1px solid #ffc107; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <div id="loginForm">
+        <h2>AI Gateway Login</h2>
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
+        <button onclick="login()">Login</button>
+        <button class="secondary" onclick="showRegister()">Create Account</button>
+        <div id="result"></div>
+    </div>
+
+    <div id="registerForm" class="hidden">
+        <h2>Create Account</h2>
+        <input type="text" id="regUsername" placeholder="Username">
+        <input type="password" id="regPassword" placeholder="Password">
+        <button onclick="register()">Register</button>
+        <button class="secondary" onclick="showLogin()">Back to Login</button>
+        <div id="regResult"></div>
+    </div>
+
+    <div style="margin-top: 20px; text-align: center;">
+        <a href="swagger.html">Swagger</a>
+    </div>
+
+    <script>
+        function showRegister() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        }
+
+        function showLogin() {
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('loginForm').classList.remove('hidden');
+        }
+
+        async function register() {
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+            const res = await fetch('/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                document.getElementById('regResult').innerHTML = 
+                    '<div class="success">' + data.message + '</div>';
+                setTimeout(showLogin, 2000);
+            } else {
+                document.getElementById('regResult').innerHTML = 
+                    '<div class="error">' + data.error + '</div>';
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const res = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                sessionStorage.setItem('auth', btoa(username + ':' + password));
+                sessionStorage.setItem('username', username);
+                window.location.href = '/tokens.html';
+            } else {
+                document.getElementById('result').innerHTML = 
+                    '<div class="error">' + data.error + '</div>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Custom Guardrails - AI Gateway</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; }
+    .header { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    h1 { font-size: 24px; margin-bottom: 10px; }
+    .logout { float: right; padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .add-section { background: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 5px; font-weight: 500; }
+    input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-family: inherit; }
+    textarea { min-height: 150px; font-size: 14px; }
+    button { padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; }
+    button:hover { background: #0056b3; }
+    .guardrails-list { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .guardrail-item { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin-bottom: 15px; }
+    .guardrail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .guardrail-name { font-weight: 600; font-size: 16px; }
+    .guardrail-status { padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+    .status-enabled { background: #d4edda; color: #155724; }
+    .status-disabled { background: #f8d7da; color: #721c24; }
+    .guardrail-prompt { background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; white-space: pre-wrap; margin-bottom: 10px; }
+    .guardrail-meta { font-size: 12px; color: #666; margin-bottom: 10px; }
+    .guardrail-actions button { margin-right: 10px; padding: 6px 12px; font-size: 13px; }
+    .btn-toggle { background: #ffc107; }
+    .btn-toggle:hover { background: #e0a800; }
+    .btn-delete { background: #dc3545; }
+    .btn-delete:hover { background: #c82333; }
+    .btn-edit { background: #17a2b8; }
+    .btn-edit:hover { background: #138496; }
+    .empty-state { text-align: center; padding: 40px; color: #666; }
+    .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; }
+    .modal-content { background: white; max-width: 600px; margin: 50px auto; padding: 20px; border-radius: 8px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <button class="logout" onclick="logout()">Logout</button>
+      <button class="logout" onclick="window.location.href='/admin.html'" style="background: #007bff; margin-right: 10px;">← Back to Admin</button>
+      <h1>Custom Guardrails</h1>
+      <p>Manage AI-based content filtering rules</p>
+    </div>
+
+    <div class="add-section">
+      <h2 style="margin-bottom: 15px;">Add New Guardrail</h2>
+      <div class="form-group">
+        <label>Guardrail Name</label>
+        <input type="text" id="name" placeholder="e.g., Financial Advice Filter">
+      </div>
+      <div class="form-group">
+        <label>System Prompt (AI will respond with "BLOCK" or "ALLOW")</label>
+        <textarea id="systemPrompt" placeholder="Example:
+You are a content filter. Block any requests that ask for:
+- Financial investment advice
+- Medical diagnoses
+- Legal advice
+
+Respond with ONLY 'BLOCK' or 'ALLOW'."></textarea>
+      </div>
+      <button onclick="addGuardrail()">Add Guardrail</button>
+    </div>
+
+    <div class="guardrails-list">
+      <h2 style="margin-bottom: 15px;">Active Guardrails</h2>
+      <div id="guardrailsList"></div>
+    </div>
+  </div>
+
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Edit Guardrail</h2>
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="form-group">
+        <label>System Prompt</label>
+        <textarea id="editSystemPrompt" style="min-height: 200px;"></textarea>
+      </div>
+      <button onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+
+  <script>
+    let editingId = null;
+
+    if (!sessionStorage.getItem('adminSession')) {
+      window.location.href = '/admin.html';
+    }
+
+    async function loadGuardrails() {
+      const res = await fetch('/admin/guardrails');
+      const guardrails = await res.json();
+      
+      const list = document.getElementById('guardrailsList');
+      
+      if (guardrails.length === 0) {
+        list.innerHTML = '<div class="empty-state">No custom guardrails configured yet.</div>';
+        return;
+      }
+      
+      list.innerHTML = guardrails.map(g => `
+        <div class="guardrail-item">
+          <div class="guardrail-header">
+            <div class="guardrail-name">${g.name}</div>
+            <div class="guardrail-status ${g.enabled ? 'status-enabled' : 'status-disabled'}">
+              ${g.enabled ? 'Enabled' : 'Disabled'}
+            </div>
+          </div>
+          <div class="guardrail-meta">Created: ${new Date(g.created).toLocaleString()}</div>
+          <div class="guardrail-prompt">${g.systemPrompt}</div>
+          <div class="guardrail-actions">
+            <button class="btn-edit" onclick="editGuardrail('${g.id}', \`${g.systemPrompt.replace(/`/g, '\\`')}\`)">Edit</button>
+            <button class="btn-toggle" onclick="toggleGuardrail('${g.id}', ${!g.enabled})">${g.enabled ? 'Disable' : 'Enable'}</button>
+            <button class="btn-delete" onclick="deleteGuardrail('${g.id}')">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    async function addGuardrail() {
+      const name = document.getElementById('name').value.trim();
+      const systemPrompt = document.getElementById('systemPrompt').value.trim();
+      
+      if (!name || !systemPrompt) {
+        alert('Please fill in all fields');
+        return;
+      }
+      
+      await fetch('/admin/guardrails', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, systemPrompt })
+      });
+      
+      document.getElementById('name').value = '';
+      document.getElementById('systemPrompt').value = '';
+      loadGuardrails();
+    }
+
+    async function toggleGuardrail(id, enabled) {
+      await fetch(`/admin/guardrails/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled })
+      });
+      loadGuardrails();
+    }
+
+    async function deleteGuardrail(id) {
+      if (!confirm('Delete this guardrail?')) return;
+      await fetch(`/admin/guardrails/${id}`, { method: 'DELETE' });
+      loadGuardrails();
+    }
+
+    function editGuardrail(id, systemPrompt) {
+      editingId = id;
+      document.getElementById('editSystemPrompt').value = systemPrompt;
+      document.getElementById('editModal').style.display = 'block';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+      editingId = null;
+    }
+
+    async function saveEdit() {
+      const systemPrompt = document.getElementById('editSystemPrompt').value.trim();
+      if (!systemPrompt) {
+        alert('System prompt cannot be empty');
+        return;
+      }
+      
+      await fetch(`/admin/guardrails/${editingId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ systemPrompt })
+      });
+      
+      closeEditModal();
+      loadGuardrails();
+    }
+
+    function logout() {
+      sessionStorage.removeItem('adminSession');
+      window.location.href = '/admin.html';
+    }
+
+    loadGuardrails();
+  </script>
+</body>
+</html>

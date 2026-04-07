@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #fafafa; }
+        .header { background: #1b1b1b; color: white; padding: 20px; }
+        .header h1 { font-size: 24px; }
+        .header p { color: #aaa; margin-top: 5px; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .auth-section { background: white; padding: 20px; margin: 20px 0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .endpoint { background: white; margin: 20px 0; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
+        .endpoint-header { padding: 15px 20px; cursor: pointer; display: flex; align-items: center; }
+        .endpoint-header:hover { background: #f7f7f7; }
+        .method { padding: 5px 10px; border-radius: 3px; font-weight: bold; margin-right: 15px; font-size: 12px; }
+        .method.post { background: #49cc90; color: white; }
+        .path { font-family: monospace; font-size: 14px; flex: 1; }
+        .endpoint-body { padding: 20px; border-top: 1px solid #eee; display: none; }
+        .endpoint.open .endpoint-body { display: block; }
+        .section-title { font-weight: bold; margin: 15px 0 10px; color: #3b4151; }
+        .code-block { background: #41444e; color: #fff; padding: 15px; border-radius: 4px; font-family: monospace; font-size: 13px; overflow-x: auto; margin: 10px 0; }
+        .param { background: #f7f7f7; padding: 10px; margin: 5px 0; border-radius: 3px; }
+        .param-name { font-weight: bold; color: #3b4151; }
+        .param-type { color: #888; font-size: 12px; margin-left: 10px; }
+        .try-it { background: #4990e2; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .try-it:hover { background: #357abd; }
+        .response { background: #f7f7f7; padding: 15px; border-radius: 4px; margin-top: 10px; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 3px; }
+        .token-input { font-family: monospace; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="container">
+            <h1>OpenAI API Gateway</h1>
+            <p>API Documentation v1.0</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="auth-section">
+            <h2>Authentication</h2>
+            <p style="margin: 10px 0;">All API requests require a Bearer token in the Authorization header.</p>
+            <input type="text" id="apiToken" class="token-input" placeholder="Enter your API token">
+        </div>
+
+        <div class="endpoint">
+            <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                <span class="method post">POST</span>
+                <span class="path">/v1/chat/completions</span>
+                <span style="margin-left: auto; color: #888;">Create chat completion</span>
+            </div>
+            <div class="endpoint-body">
+                <div class="section-title">Description</div>
+                <p>Creates a model response for the given chat conversation.</p>
+
+                <div class="section-title">Parameters</div>
+                <div class="param">
+                    <span class="param-name">model</span>
+                    <span class="param-type">string (required)</span>
+                    <p style="margin-top: 5px; color: #666;">ID of the model to use (e.g., gpt-4, gpt-4o-mini)</p>
+                </div>
+                <div class="param">
+                    <span class="param-name">messages</span>
+                    <span class="param-type">array (required)</span>
+                    <p style="margin-top: 5px; color: #666;">Array of message objects with role and content</p>
+                </div>
+                <div class="param">
+                    <span class="param-name">temperature</span>
+                    <span class="param-type">number (optional)</span>
+                    <p style="margin-top: 5px; color: #666;">Sampling temperature between 0 and 2. Default: 1</p>
+                </div>
+                <div class="param">
+                    <span class="param-name">max_tokens</span>
+                    <span class="param-type">integer (optional)</span>
+                    <p style="margin-top: 5px; color: #666;">Maximum number of tokens to generate</p>
+                </div>
+
+                <div class="section-title">Example Request (curl)</div>
+                <div class="code-block">curl http://98.120.106.170:42066/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ],
+    "temperature": 1,
+    "max_tokens": 100
+  }'</div>
+
+                <div class="section-title">Try it out</div>
+                <label>Model:</label>
+                <select id="model">
+                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4-turbo">gpt-4-turbo</option>
+                    <option value="gpt-4">gpt-4</option>
+                    <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                </select>
+                
+                <label>Message:</label>
+                <textarea id="message" rows="3" placeholder="Enter your message">Hello! How are you?</textarea>
+                
+                <label>Temperature (0-2):</label>
+                <input type="number" id="temperature" value="1" min="0" max="2" step="0.1">
+                
+                <label>Max Tokens:</label>
+                <input type="number" id="maxTokens" value="100" min="1">
+                
+                <button class="try-it" onclick="testChat()">Execute</button>
+                <button class="try-it" onclick="copyCurlCommand()" style="background: #17a2b8; margin-left: 10px;">Copy as cURL</button>
+                
+                <div id="response" class="response" style="display: none;">
+                    <div class="section-title">Response</div>
+                    <div class="code-block" id="responseBody"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="endpoint">
+            <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                <span class="method post">POST</span>
+                <span class="path">/v1/chat/completions (streaming)</span>
+                <span style="margin-left: auto; color: #888;">Stream chat completion</span>
+            </div>
+            <div class="endpoint-body">
+                <div class="section-title">Description</div>
+                <p>Creates a streaming model response for the given chat conversation.</p>
+
+                <div class="section-title">Example Request (curl)</div>
+                <div class="code-block">curl http://98.120.106.170:42066/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [
+      {"role": "user", "content": "Hello!"}
+    ],
+    "stream": true
+  }'</div>
+
+                <div class="section-title">Try it out</div>
+                <label>Model:</label>
+                <select id="streamModel">
+                    <option value="gpt-4o-mini">gpt-4o-mini</option>
+                    <option value="gpt-4o">gpt-4o</option>
+                    <option value="gpt-4-turbo">gpt-4-turbo</option>
+                    <option value="gpt-4">gpt-4</option>
+                    <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+                </select>
+                
+                <label>Message:</label>
+                <textarea id="streamMessage" rows="3" placeholder="Enter your message">Hello! How are you?</textarea>
+                
+                <button class="try-it" onclick="testStream()">Execute</button>
+                
+                <div id="streamResponse" class="response" style="display: none;">
+                    <div class="section-title">Streaming Response</div>
+                    <div class="code-block" id="streamBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleEndpoint(header) {
+            header.parentElement.classList.toggle('open');
+        }
+
+        function copyCurlCommand() {
+            const token = document.getElementById('apiToken').value;
+            if (!token) {
+                alert('Please enter your API token first');
+                return;
+            }
+
+            const model = document.getElementById('model').value;
+            const message = document.getElementById('message').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const maxTokens = parseInt(document.getElementById('maxTokens').value);
+
+            const curlCommand = `curl http://98.120.106.170:42066/v1/chat/completions \\
+  -H "Authorization: Bearer ${token}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${model}",
+    "messages": [
+      {"role": "user", "content": "${message.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"}
+    ],
+    "temperature": ${temperature},
+    "max_tokens": ${maxTokens}
+  }'`;
+
+            navigator.clipboard.writeText(curlCommand).then(() => {
+                alert('cURL command copied to clipboard!');
+            }).catch(() => {
+                alert('Failed to copy. Please copy manually:\n\n' + curlCommand);
+            });
+        }
+
+        async function testChat() {
+            const token = document.getElementById('apiToken').value;
+            if (!token) {
+                alert('Please enter your API token');
+                return;
+            }
+
+            const model = document.getElementById('model').value;
+            const message = document.getElementById('message').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const maxTokens = parseInt(document.getElementById('maxTokens').value);
+
+            document.getElementById('responseBody').textContent = 'Loading...';
+            document.getElementById('response').style.display = 'block';
+
+            try {
+                const res = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: 'user', content: message }],
+                        temperature: temperature,
+                        max_tokens: maxTokens
+                    })
+                });
+
+                const data = await res.json();
+                document.getElementById('responseBody').textContent = JSON.stringify(data, null, 2);
+            } catch (error) {
+                document.getElementById('responseBody').textContent = 'Error: ' + error.message;
+            }
+        }
+
+        async function testStream() {
+            const token = document.getElementById('apiToken').value;
+            if (!token) {
+                alert('Please enter your API token');
+                return;
+            }
+
+            const model = document.getElementById('streamModel').value;
+            const message = document.getElementById('streamMessage').value;
+
+            document.getElementById('streamBody').textContent = '';
+            document.getElementById('streamResponse').style.display = 'block';
+
+            try {
+                const res = await fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: 'user', content: message }],
+                        stream: true
+                    })
+                });
+
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let fullText = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n').filter(line => line.trim().startsWith('data:'));
+                    
+                    for (const line of lines) {
+                        const data = line.replace('data: ', '').trim();
+                        if (data === '[DONE]') continue;
+                        
+                        try {
+                            const parsed = JSON.parse(data);
+                            const content = parsed.choices[0]?.delta?.content || '';
+                            fullText += content;
+                            document.getElementById('streamBody').textContent = fullText;
+                        } catch (e) {}
+                    }
+                }
+            } catch (error) {
+                document.getElementById('streamBody').textContent = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
