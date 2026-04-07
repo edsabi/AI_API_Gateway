@@ -228,4 +228,4 @@ Contributions are welcome! Please open an issue or submit a pull request.
 
 ## License
 
-MIT License - feel free to use and modify for your needs.
+MIT License
