@@ -154,11 +154,8 @@ Users can create multiple tokens with:
 
 ## Security Features
 
-- Password-based authentication
 - Token-based API access
-- Admin password protection
 - Environment variable configuration
-- No hardcoded credentials
 - Request logging and monitoring
 
 ## Deployment
